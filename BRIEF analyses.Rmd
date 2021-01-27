@@ -118,7 +118,7 @@ table1::label(BRIEF$Ethnicity_recoded) <- "Ethnicity"
 table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded  | LanguageGroup, data = BRIEF, overall=F)
 ```
 
-#### Comparing SES across Language Group
+#### Comparing SES across Language Groups
 ```{r}
 ggboxplot(BRIEF, x = "LanguageGroup", y = "SES..3.66.", 
           color = "LanguageGroup",
@@ -135,7 +135,7 @@ dunnTest(SES..3.66.~LanguageGroup, data=BRIEF, method="hochberg")
 #Later ASL has significantly lower SES than typically hearing
 ```
 
-#### Comparing Age across Language Group
+#### Comparing Age across Language Groups
 ```{r}
 ggboxplot(BRIEF, x = "LanguageGroup", y = "AgeMonths", 
           color = "LanguageGroup",
@@ -158,12 +158,22 @@ table1::label(BRIEF$Hearing.Device) <- "Type of Hearing Device"
 table1::label(BRIEF$AoAE) <- "Age of First Auditory Exposure (Months)"
 table1::label(BRIEF$Age.of.Language.Exposure..mo.) <- "Age of First Language Exposure (Months)"
 
-CHECK HOW MANY WE HAVE age of onset deafness, cause of deafness, and age of first CI implantation
-  IF not missing too many, ADD TO TABLE 3
-
 table1::table1(~Hearing_Level_3_Cat + Hearing.Device + AoAE + Age.of.Language.Exposure..mo.| LanguageGroup, data = BRIEF, overall=F)
 ```
-  
+#### Comparing Age of Auditory Exposure across Language Groups
+```{r}
+ggboxplot(BRIEF, x = "LanguageGroup", y = "AgeMonths", 
+          color = "LanguageGroup",
+          order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
+          ylab = "SES", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=AgeMonths))+ geom_histogram() + facet_grid(~LanguageGroup)
+leveneTest(AgeMonths~LanguageGroup, data=BRIEF)
+SES_LangGrp <- kruskal.test(AgeMonths~LanguageGroup, data=BRIEF)
+SES_LangGrp 
+
+dunnTest(AgeMonths~LanguageGroup, data=BRIEF, method="hochberg")
+#Later ASL significantly older than TH
+```
 
 ## Results  
 #### **Question 1: How do children with early access to sign language but not auditory input compare in parent-reported executive functioning skills relative to typically hearing peers?**  
