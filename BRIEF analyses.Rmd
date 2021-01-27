@@ -15,7 +15,7 @@ knitr::opts_chunk$set(root.dir = '/Desktop', echo = TRUE)
 Load the following libraries. If they are not installed, run install.packages ("packagename")
 ```{r results='hide', warning=FALSE, message=FALSE}
 #from https://www.vikram-baliga.com/blog/2015/7/19/a-hassle-free-way-to-verify-that-r-packages-are-installed-and-loaded
-packages = c("tidyverse","ggplot2","beeswarm","colorspace", "stargazer", "qwraps2", "gridExtra","ggpubr","car","olsrr","ggbeeswarm", "broom", "rmarkdown", "table1", "kableExtra", "epitools", "FSA", "userfriendlyscience")
+packages = c("tidyverse","ggplot2","beeswarm","colorspace", "stargazer", "qwraps2", "gridExtra","ggpubr","car","olsrr","ggbeeswarm", "broom", "rmarkdown", "table1", "kableExtra", "epitools", "FSA", "Hmisc", "userfriendlyscience")
 package.check <- lapply(packages, FUN = function(x) {
   if (!require(x, character.only = TRUE)) {
     install.packages(x, dependencies = TRUE)
@@ -140,7 +140,7 @@ dunnTest(SES..3.66.~LanguageGroup, data=BRIEF, method="hochberg")
 ggboxplot(BRIEF, x = "LanguageGroup", y = "AgeMonths", 
           color = "LanguageGroup",
           order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
-          ylab = "SES", xlab = "Language Group")
+          ylab = "Age (Months)", xlab = "Language Group")
 ggplot(data=BRIEF, mapping=aes(x=AgeMonths))+ geom_histogram() + facet_grid(~LanguageGroup)
 leveneTest(AgeMonths~LanguageGroup, data=BRIEF)
 SES_LangGrp <- kruskal.test(AgeMonths~LanguageGroup, data=BRIEF)
@@ -160,19 +160,39 @@ table1::label(BRIEF$Age.of.Language.Exposure..mo.) <- "Age of First Language Exp
 
 table1::table1(~Hearing_Level_3_Cat + Hearing.Device + AoAE + Age.of.Language.Exposure..mo.| LanguageGroup, data = BRIEF, overall=F)
 ```
+
+
+
 #### Comparing Age of Auditory Exposure across Language Groups
 ```{r}
-ggboxplot(BRIEF, x = "LanguageGroup", y = "AgeMonths", 
+ggboxplot(BRIEF, x = "LanguageGroup", y = "AoAE", 
           color = "LanguageGroup",
           order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
-          ylab = "SES", xlab = "Language Group")
-ggplot(data=BRIEF, mapping=aes(x=AgeMonths))+ geom_histogram() + facet_grid(~LanguageGroup)
-leveneTest(AgeMonths~LanguageGroup, data=BRIEF)
-SES_LangGrp <- kruskal.test(AgeMonths~LanguageGroup, data=BRIEF)
+          ylab = "Age of Auditory Exposure (Months)", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=AoAE))+ geom_histogram() + facet_grid(~LanguageGroup)
+leveneTest(AoAE~LanguageGroup, data=BRIEF)
+SES_LangGrp <- kruskal.test(AoAE~LanguageGroup, data=BRIEF)
 SES_LangGrp 
 
-dunnTest(AgeMonths~LanguageGroup, data=BRIEF, method="hochberg")
-#Later ASL significantly older than TH
+dunnTest(AoAE~LanguageGroup, data=BRIEF, method="hochberg")
+#Typically hearing group has significantly earlier age of auditory exposure than all three DHH groups
+#Later English participants have significantly earlier auditory experience than both Early and Later ASL
+#Early and Later ASL groups did not differ in terms of their age of auditory exposure
+```
+
+#### Comparing Age of Language Exposure across Language Groups
+```{r}
+ggboxplot(BRIEF, x = "LanguageGroup", y = "Age.of.Language.Exposure..mo.", 
+          color = "LanguageGroup",
+          order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
+          ylab = "Age of Language Exposure (Months)", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=Age.of.Language.Exposure..mo.))+ geom_histogram() + facet_grid(~LanguageGroup)
+leveneTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
+SES_LangGrp <- kruskal.test(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
+SES_LangGrp 
+
+dunnTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF, method="hochberg")
+#
 ```
 
 ## Results  
@@ -185,7 +205,7 @@ Create dataframe with only children exposed to language early and perform t-test
 BRIEF_early <- subset(BRIEF_AgeOf, BRIEF_AgeOf$Language_Timing=="Early")
 ```
   
-Welch two sample t-tests: No comparisons were significant  
+Welch two sample t-tests: Early ASL group did not differ from Typically Hearing group on any  subscale 
 ```{r}
 table1::label(BRIEF_early$GEC_RawScore) <- "Global Executive Composite"
 table1::label(BRIEF_early$Inhibit_RawScore) <- "Inhibition"
@@ -194,7 +214,7 @@ table1::label(BRIEF_early$Emotional.Control_RawScore) <- "Emotional Control"
 table1::label(BRIEF_early$Working.Memory_RawScore) <- "Working Memory"
 table1::label(BRIEF_early$Plan.Organize_RawScore) <- "Plan/Organize"
 
-table1(~GEC_RawScore + Inhibit_RawScore + Shift_RawScore + Emotional.Control_RawScore + Working.Memory_RawScore + Plan.Organize_RawScore | Group_3cat, data = BRIEF_early, overall=F)
+table1(~GEC_RawScore + Inhibit_RawScore + Shift_RawScore + Emotional.Control_RawScore + Working.Memory_RawScore + Plan.Organize_RawScore | Language_Modality, data = BRIEF_early, overall=F)
 
 t.test(BRIEF_early$GEC_RawScore~BRIEF_early$Language_Modality)
 t.test(BRIEF_early$Inhibit_RawScore~BRIEF_early$Language_Modality)
@@ -223,7 +243,6 @@ flattenCorrMatrix <- function(cormat, pmat) {
 }
 BRIEF_num_pred <- rcorr(as.matrix(num_predictors), type = c("pearson"))
 flattenCorrMatrix(BRIEF_num_pred$r, BRIEF_num_pred$P)
-car::vif()
 
 ```
 
@@ -533,57 +552,48 @@ table1::label(BRIEF_AgeApp$Race) <- "Race"
 table1::label(BRIEF_AgeApp$Ethnicity) <- "Ethnicity"
 table1::label(BRIEF_AgeApp$SES..3.66.) <- "SES"
  
-table1::table1(~AgeMonths + Sex + Race + Ethnicity + SES..3.66. | Group_3cat, data = BRIEF_AgeApp, overall=F)
+table1::table1(~AgeMonths + Sex + Race + Ethnicity + SES..3.66. | LanguageGroup, data = BRIEF_AgeApp, overall=F)
 ```
 
 #### Table 5. 
 ##### **Risk Ratios (Relative Risk) and 95% confidence intervals for Global Executive Composite T-scores**
 ```{r}
 BRIEF_AgeApp_GEC_over65 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Global Executive Composite T-score < 65 (n)" = sum(GEC_Tscore < 65), "Global Executive Composite T-score > 65 (n)" = sum(GEC_Tscore >= 65))
 
 BRIEF_AgeApp_GEC_over65 %>%
     kable() %>%  
     kable_styling(bootstrap_options = "striped")
 
-Early_ASL_GEC_rr <- matrix(c(41,3,20,1), 2, 2, byrow=TRUE)
-dimnames(Early_ASL_GEC_rr) <- list("Group" = c("Typically Hearing", "Early ASL"), "GEC T-score" = c("Not Clinically Significant", "Clinically Significant"))
-Early_ASL_GEC_rr
-riskratio.small(Early_ASL_GEC_rr)
-
-Later_Lang_GEC_rr <- matrix(c(41,3,39,6), 2, 2, byrow=TRUE)
-dimnames(Later_Lang_GEC_rr) <- list("Group" = c("Typically Hearing", "Later Language"), "GEC T-score" = c("Not Clinically Significant", "Clinically Significant"))
-Later_Lang_GEC_rr
-riskratio.small(Later_Lang_GEC_rr)
-
+GEC_rr <- matrix(c(41,3, 20,1, 26, 3, 13, 3), 4, 2, byrow=TRUE)
+dimnames(GEC_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "GEC T-score" = c("Not Clinically Significant", "Clinically Significant"))
+GEC_rr
+riskratio.small(GEC_rr)
 ```
   
 ##### **Inhibit Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_Inhibit_over65 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Inhibit T-score < 65 (n)" = sum(Inhibit_Tscore < 65), "Inhibit T-score > 65 (n)" = sum(Inhibit_Tscore >= 65))
 
 BRIEF_AgeApp_Inhibit_over65 %>%
     kable() %>%  
     kable_styling(bootstrap_options = "striped")
 
-Early_ASL_Inhibit_rr <- matrix(c(42,2,19,2), 2, 2, byrow=TRUE)
-dimnames(Early_ASL_Inhibit_rr) <- list("Group" = c("Typically Hearing", "Early ASL"), "Inhibit T-score" = c("Not Clinically Significant", "Clinically Significant"))
-Early_ASL_Inhibit_rr
-riskratio.small(Early_ASL_Inhibit_rr)
+Inhibit_rr <- matrix(c(42,2,19,2, 27, 2, 15, 1), 4, 2, byrow=TRUE)
+dimnames(Inhibit_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "GEC T-score" = c("Not Clinically Significant", "Clinically Significant"))
+Inhibit_rr
+riskratio.small(Inhibit_rr)
 
-Later_Lang_Inhibit_rr <- matrix(c(42,2,42,3), 2, 2, byrow=TRUE)
-dimnames(Later_Lang_Inhibit_rr) <- list("Group" = c("Typically Hearing", "Later Language"), "Inhibit T-score" = c("Not Clinically Significant", "Clinically Significant"))
-Later_Lang_Inhibit_rr
-riskratio.small(Later_Lang_Inhibit_rr)
+
 ```
   
 ##### **Shift Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_Shift_over65 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Shift T-score < 65 (n)" = sum(Shift_Tscore < 65), "Shift T-score > 65 (n)" = sum(Shift_Tscore >= 65))
 
 BRIEF_AgeApp_Shift_over65 %>%
@@ -604,7 +614,7 @@ riskratio.small(Later_Lang_Shift_rr)
 ##### **Emotional Control Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_EmoCtrl_over65 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Emotional Control T-score < 65 (n)" = sum(Emotional.Control_Tscore < 65), "Emotional Control T-score > 65 (n)" = sum(Emotional.Control_Tscore >= 65))
 
 BRIEF_AgeApp_EmoCtrl_over65 %>%
@@ -625,7 +635,7 @@ riskratio.small(Later_Lang_EmoCtrl_rr)
 ##### **Working Memory Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_WorkMem_over65 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Working Memory T-score < 65 (n)" = sum(Working.Memory_Tscore < 65), "Working Memory T-score > 65 (n)" = sum(Working.Memory_Tscore >= 65))
 
 BRIEF_AgeApp_WorkMem_over65 %>%
@@ -647,7 +657,7 @@ riskratio.small(Later_Lang_WorkMem_rr)
 ##### **Plan/Organize Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_PlanOrg_over65 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Plan/Organize T-score < 65 (n)" = sum(Plan.Organize_Tscore < 65), "Plan/Organize T-score > 65 (n)" = sum(Plan.Organize_Tscore >= 65))
 
 BRIEF_AgeApp_PlanOrg_over65 %>%
@@ -673,7 +683,7 @@ riskratio.small(Later_Lang_PlanOrg_rr)
 ##### **Risk Ratios (Relative Risk) and 95% confidence intervals for Global Executive Composite T-scores > 60**
 ```{r}
 BRIEF_AgeApp_GEC_over60 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Global Executive Composite T-score < 60 (n)" = sum(GEC_Tscore < 60), "Global Executive Composite T-score > 60 (n)" = sum(GEC_Tscore >= 60))
 
 BRIEF_AgeApp_GEC_over60 %>%
@@ -695,7 +705,7 @@ riskratio.small(Later_Lang_GEC_60rr)
 ##### **Inhibit T-scores > 60 Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_Inhibit_over60 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Inhibit T-score < 60 (n)" = sum(Inhibit_Tscore < 60), "Inhibit T-score > 60 (n)" = sum(Inhibit_Tscore >= 60))
 
 BRIEF_AgeApp_Inhibit_over60 %>%
@@ -716,7 +726,7 @@ riskratio.small(Later_Lang_Inhibit_60rr)
 ##### **Shift T-scores > 60 Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_Shift_over60 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Shift T-score < 60 (n)" = sum(Shift_Tscore < 60), "Shift T-score > 60 (n)" = sum(Shift_Tscore >= 60))
 
 BRIEF_AgeApp_Shift_over60 %>%
@@ -737,7 +747,7 @@ riskratio.small(Later_Lang_Shift_60rr)
 ##### **Emotional Control T-scores > 60 Risk Ratios and 95% Confidence** Intervals
 ```{r}
 BRIEF_AgeApp_EmoCtrl_over60 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Emotional Control T-score < 60 (n)" = sum(Emotional.Control_Tscore < 60), "Emotional Control T-score > 60 (n)" = sum(Emotional.Control_Tscore >= 60))
 
 BRIEF_AgeApp_EmoCtrl_over60 %>%
@@ -758,7 +768,7 @@ riskratio.small(Later_Lang_EmoCtrl_60rr)
 ##### **Working Memory T-scores > 60 Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_WorkMem_over60 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Working Memory T-score < 60 (n)" = sum(Working.Memory_Tscore < 60), "Working Memory T-score > 60 (n)" = sum(Working.Memory_Tscore >= 60))
 
 BRIEF_AgeApp_WorkMem_over60 %>%
@@ -780,7 +790,7 @@ riskratio.small(Later_Lang_WorkMem_60rr)
 ##### **Plan/Organize T-scores > 60 Risk Ratios and 95% Confidence Intervals**
 ```{r}
 BRIEF_AgeApp_PlanOrg_over60 <- BRIEF_AgeApp %>% 
-    group_by(Group_3cat) %>% 
+    group_by(LanguageGroup) %>% 
     summarise("Plan/Organize T-score < 60 (n)" = sum(Plan.Organize_Tscore < 60), "Plan/Organize T-score > 60 (n)" = sum(Plan.Organize_Tscore >= 60))
 
 BRIEF_AgeApp_PlanOrg_over60 %>%
@@ -796,8 +806,6 @@ Later_Lang_PlanOrg_60rr <- matrix(c(37,7,30,15), 2, 2, byrow=TRUE)
 dimnames(Later_Lang_PlanOrg_60rr) <- list("Group" = c("Typically Hearing", "Later Language"), "Plan/Organize T-score" = c("Not Elevated", "Elevated"))
 Later_Lang_PlanOrg_60rr
 riskratio.small(Later_Lang_PlanOrg_60rr)
-
-
 ```
 
 Checking whether Age-appropriate kids differ from non-age appropriate kids
@@ -809,25 +817,18 @@ table1::label(BRIEF$Sex) <- "Sex"
 table1::label(BRIEF$Race) <- "Race"
 table1::label(BRIEF$Ethnicity) <- "Ethnicity"
 table1::label(BRIEF$SES..3.66.) <- "SES"
-table1::label(BRIEF$Group_4cat) <- "4 Category Grouping"
-table1::label(BRIEF$Group_3cat) <- "3 Category Grouping"
+table1::label(BRIEF$LanguageGroup) <- "Language Group"
 
 
-table1::table1(~AgeMonths + Sex + Race + Ethnicity + SES..3.66. + Group_4cat + Group_3cat | Age.Appropriate., data = BRIEF, overall=T)
-
+table1::table1(~AgeMonths + Sex + Race + Ethnicity + SES..3.66. + LanguageGroup | Age.Appropriate., data = BRIEF, overall=T)
+```
 ##Shows that  ASL Later kids make up 48% of the non age-appropriate sample,  14.5% of the age-appropriate sample, and 21.6% of the overall sample
 
 ##English later kids make up 20.7% of the non age-appropriate sample,  26.4% of the age-appropriate sample, and 25.2% of the overall sample
 
-##Looking at a 3-category grouping: LATER make up 69% of non-age-appropriatesample, 40.9% of age-appropriate sample, and 46.8% in overall
+##This is to say that kids in the Later group, and specifically Later ASL, are probably over-represented in the not having received age appropriate BRIEF
+##The finding that LATER exposed kids tend to have more elevated scores, is evidence AGAINST the suggestion that there might be questions on the BRIEF-P that may not be appropriate for older kids? If the behaviors the BRIEF-P asks about were not appropriate for older kids, then we would *not* expect Later exposed older kids to have elevated BRIEF scores relative to early-exposed kids (but they do). 
 
-#This is to say that kids in the Later group, and specifically Later ASL, are probably overrepresented in the not having received age appropriate BRIEF
-  ##Thinking about this wrt that one reviewer's comment that we should use 72 mos as cut off
-##Since we find that LATER exposed kids tend to have more elevated scores, is that evidence AGAINST that reviewer's suggestion that there are questions on the BRIEF-P that may not be appropriate for older kids?
-##IF the behaviors the BRIEF-P asked about were not appropriate for older kids, meaning we wouldn't expect an older kid to do them, then the Later exposed older kids should NOT have elevated BRIEF scores relative to early-exposed kids, right? 
-
-
-```
 
 ####Comparing stepwise models with AoAE added first
 To determine the effect of Age of Language Exposure on top of Age of Auditory Exposure 
@@ -903,4 +904,4 @@ summary(plan_all_AoAE_AoLE)
 anova(plan_all_AoAE, plan_all_AoAE_AoLE)
 
 ```
-
+###For all subscales, adding Age of Auditory Exposure to the model with demographic variables did not improve model fit (and Age of Auditory Exposure was not a significant predictor of any subsale), but subsequently adding Age of Language exposure to the model with Age of Auditory Exposure and demographic variables *did* significantly improve model fit. 
