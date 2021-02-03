@@ -722,7 +722,7 @@ EmoCtrl_60rr <- matrix(c(33,11, 19,2, 27,2, 13,3), 4, 2, byrow=TRUE)
 dimnames(EmoCtrl_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Emotional Control T-score" = c("Not Elevated", "Elevated"))
 EmoCtrl_60rr
 riskratio.small(EmoCtrl_60rr)
-#Later English borderline *less* likely than TH to have elevated Emotional Control T-scores (but there do seem to be)
+#Later English borderline *less* likely than TH to have elevated Emotional Control T-scores (but there do seem to be an unexpectedly high number of TH kids in the "elevated" score range, and Later English group only on average 4 months older than TH kids)
 ```
   
 ##### **Working Memory T-scores > 60 Risk Ratios and 95% Confidence Intervals**
@@ -756,7 +756,7 @@ PlanOrg_60rr <- matrix(c(37,7,18,3, 19, 10, 11, 5), 4, 2, byrow=TRUE)
 dimnames(PlanOrg_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Plan/Organize T-score" = c("Not Elevated", "Elevated"))
 PlanOrg_60rr
 riskratio.small(PlanOrg_60rr)
-#DHH groups *not* significantly more likely to have elevated Inhibit T-scores relative to TH group, but the Later english group close
+#DHH groups *not* significantly more likely to have elevated Inhibit T-scores relative to TH group, but the Later English group close
 ```
 
 Checking whether Age-appropriate kids differ from non-age appropriate kids
