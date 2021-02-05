@@ -7,8 +7,8 @@ output:
   pdf_document: default
 ---
 
-```{r echo=FALSE}
-knitr::opts_chunk$set(root.dir = '/Desktop', echo = TRUE)
+```{r echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(root.dir = '/Desktop', tidy=TRUE)
 ```
 
 ## Load Packages  
@@ -29,15 +29,14 @@ search()
 
 ## Setup Dataframes
 First, import the data from the data (CSV) file
-```{r echo=FALSE}
-#setwd("~/Desktop") 
-setwd("/Users/emilycarrigan/Dropbox/Data Analysis Work/")
+```{r Import data}
+setwd("/Users/emilycarrigan/Dropbox/Data Analysis Work/") #This should be wherever your file is saved
 BRIEF <- read.csv("BRIEF_SLaM&CGdata_CG_200423.csv", na.strings = c("N/A", "", "Unknown", "Excluded"))
 ```
 ***  
 Then, subset imported dataframe to remove participants missing age or SES information  
 <ul>
-  <li>**139 children**</li>
+  <li>This results in **`r nrow(subset(BRIEF, BRIEF$AgeMonths < 100 & BRIEF$AgeMonths!="" & BRIEF$SES..3.66.!=""))`** participants</li>
 </ul>  
 Add 4 columns:  
 <ul>
@@ -47,7 +46,7 @@ Add 4 columns:
   <li>3-way group split</li>
 </ul>  
 
-```{r}
+```{r Data Prep}
 BRIEF <- subset(BRIEF, BRIEF$AgeMonths < 100 & BRIEF$AgeMonths!="" & BRIEF$SES..3.66.!="")
 
 BRIEF$Language_Modality <- factor(ifelse(BRIEF$Group_4cat == "English Early" | BRIEF$Group_4cat == "English Later", "English", "ASL"), levels = c("English", "ASL"))
@@ -56,7 +55,6 @@ BRIEF$Language_Timing <- factor(as.character(BRIEF$Group_2cat), levels = c("Earl
 BRIEF$LanguageGroup <- as.factor(factor(as.character(BRIEF$Group_4cat), levels = c("English Early", "ASL Early", "English Later", "ASL Later"), labels = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), exclude=NA))
 
 BRIEF$Hearing_Level_3_Cat <- as.factor(factor(as.character(BRIEF$Hearing_Level_3_Cat), levels = c("TH", "deaf", "HoH"), labels = c("Typically Hearing", "Deaf", "Hard of Hearing"), exclude=NA))
-
 
 BRIEF$Hearing.Device <- dplyr::recode(BRIEF$Hearing.Device, "BAHA" = "Other")
 BRIEF$Hearing.Device <- as.factor(factor(as.character(BRIEF$Hearing.Device), levels = c("HA", "CI", "HA & CI", "Other", "None"), labels = c("Hearing Aid", "Cochlear Implant", "Hearing Aid & Cochlear Implant", "Other", "None"), exclude=NA))
@@ -72,26 +70,23 @@ BRIEF$Ethnicity_recoded <- dplyr::recode(as.character(BRIEF$Ethnicity), 'Hispani
 
 #update ORDER of groups
 BRIEF$Ethnicity_recoded <- as.factor(factor(as.character(BRIEF$Ethnicity_recoded), levels = c("Hispanic", "Non-Hispanic", "Prefer not to answer", "Missing"), exclude=NA))
-
-
-nrow(BRIEF)
 ```
 
-Create dataframe with participants who are age appropriate for the BRIEF-P (less than 5;11 years old)  
+Create dataframe with participants who are age appropriate for the BRIEF-P (less than 5 years 11 Months old)  
 <ul>
-  <li>**110 children**</li>
+  <li>**`110`r nrow(subset(BRIEF, BRIEF$AgeMonths <= 71))` participants**</li>
 </ul>  
 ```{r}
 BRIEF_AgeApp <- subset(BRIEF, BRIEF$AgeMonths <= 71)
-nrow(BRIEF_AgeApp)
 ```
 
-Create dataframe for participants we have Age of Auditory and Language Exposure for, and remove participants for whom this information is missing
+Create dataframe for participants with Age of Auditory Exposure and Age of Language Exposure
 <ul>
   <li>*This is the dataframe used for linear models in Question 2*</li>
-  <li>Update Age of Auditory Exposure to convert "None" to current age</li>
+  <li>Create numerical "AoAE" variable from Age of Auditory Exposure variable, converting "None" to current age</li>
   <li>Change structure of Age of Auditory Exposure from character to integer</li>
-  <li>**125 children**</li>
+  <li>Remove participants for whom either of these two variables is missing
+  <li>This results in **`r nrow(subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!=''))` participants**</li>
 </ul>  
 ```{r}
 BRIEF <- dplyr::mutate(BRIEF, AoAE = ifelse(BRIEF$Age.of.Auditory.Exposure..mo.=="None", as.character(BRIEF$AgeMonths), as.character(BRIEF$Age.of.Auditory.Exposure..mo.)))
@@ -143,8 +138,8 @@ ggboxplot(BRIEF, x = "LanguageGroup", y = "AgeMonths",
           ylab = "Age (Months)", xlab = "Language Group")
 ggplot(data=BRIEF, mapping=aes(x=AgeMonths))+ geom_histogram() + facet_grid(~LanguageGroup)
 leveneTest(AgeMonths~LanguageGroup, data=BRIEF)
-SES_LangGrp <- kruskal.test(AgeMonths~LanguageGroup, data=BRIEF)
-SES_LangGrp 
+Age_LangGrp <- kruskal.test(AgeMonths~LanguageGroup, data=BRIEF)
+Age_LangGrp 
 
 dunnTest(AgeMonths~LanguageGroup, data=BRIEF, method="hochberg")
 #Later ASL significantly older than TH
@@ -171,8 +166,8 @@ ggboxplot(BRIEF, x = "LanguageGroup", y = "AoAE",
           ylab = "Age of Auditory Exposure (Months)", xlab = "Language Group")
 ggplot(data=BRIEF, mapping=aes(x=AoAE))+ geom_histogram() + facet_grid(~LanguageGroup)
 leveneTest(AoAE~LanguageGroup, data=BRIEF)
-SES_LangGrp <- kruskal.test(AoAE~LanguageGroup, data=BRIEF)
-SES_LangGrp 
+AoAE_LangGrp <- kruskal.test(AoAE~LanguageGroup, data=BRIEF)
+AoAE_LangGrp 
 
 dunnTest(AoAE~LanguageGroup, data=BRIEF, method="hochberg")
 #Typically hearing group has significantly earlier age of auditory exposure than all three DHH groups
@@ -188,11 +183,11 @@ ggboxplot(BRIEF, x = "LanguageGroup", y = "Age.of.Language.Exposure..mo.",
           ylab = "Age of Language Exposure (Months)", xlab = "Language Group")
 ggplot(data=BRIEF, mapping=aes(x=Age.of.Language.Exposure..mo.))+ geom_histogram() + facet_grid(~LanguageGroup)
 leveneTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
-SES_LangGrp <- kruskal.test(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
-SES_LangGrp 
+AoLE_LangGrp <- kruskal.test(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
+AoLE_LangGrp 
 
 dunnTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF, method="hochberg")
-#
+#Both Early groups significantly different from both Later groups.  Later ASL also significantly different from Later English (Later ASL has even ) 
 ```
 
 ## Results  
@@ -225,12 +220,12 @@ t.test(BRIEF_early$Plan.Organize_RawScore~BRIEF_early$Language_Modality)
 
 ```
   
-#### **Question 2: How do age of access to auditory input and age of language exposure relate to parent-reported executive functioning?**  
+### **Question 2: How do age of access to auditory input and age of language exposure relate to parent-reported executive functioning?**  
 Linear regression models for the BRIEF-P composite scale and each subscale (raw scores) that characterizes the contributions of age of auditory and language exposure, as well as other relevant characteristics (e.g., SES, sex, age). 
 
-####Checking correlations between predictors
+####Checking correlations between continuous (numerical) predictors
 ```{r}
-##predictors <- BRIEF_AgeOf[, c("SES..3.66.", "Sex", "AgeMonths", "Age.of.Language.Exposure..mo.", "AoAE", "Hearing_Level_3_Cat", "Language_Modality")]
+## Function below from: http://www.sthda.com/english/wiki/correlation-matrix-formatting-and-visualization
 num_predictors <- BRIEF_AgeOf[, c("SES..3.66.", "AgeMonths", "Age.of.Language.Exposure..mo.", "AoAE")]
 flattenCorrMatrix <- function(cormat, pmat) {
   ut <- upper.tri(cormat)
@@ -243,11 +238,13 @@ flattenCorrMatrix <- function(cormat, pmat) {
 }
 BRIEF_num_pred <- rcorr(as.matrix(num_predictors), type = c("pearson"))
 flattenCorrMatrix(BRIEF_num_pred$r, BRIEF_num_pred$P)
-
 ```
+#### **Correlation Matrix Results**
+SES is not significantly correlated with any other continuous predictors
+Age correlated with both Age of Language Exposure and Age of Auditory Exposure (unsurprising)
+Age of Language exposure significantly correlated with Age of Auditory Exposure (also unsurprising given that this will be correlated for participants learning spoken English, which is >50% of our sample)
 
-
-##### **Global Executive Composite Models**
+#### **Global Executive Composite Models**
 * Base Model:  
 ```{r}
 overall_all_base <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths)
@@ -654,7 +651,9 @@ riskratio.small(PlanOrg_rr)
 ```
 
 
-#### Supplementary Materials, Relative Risk of Clinically-Elevated (T-score ≥ 60) Executive Functioning Deficits in DHH Participants
+### Supplementary Materials
+
+####Table 8. Relative Risk of Clinically-Elevated (T-score ≥ 60) Executive Functioning Deficits in DHH Participants
 
 ##### **Risk Ratios (Relative Risk) and 95% confidence intervals for Global Executive Composite T-scores > 60**
 ```{r}
