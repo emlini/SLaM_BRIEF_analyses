@@ -1,0 +1,1187 @@
+---
+title: Language Not Auditory Experience is Related to Parent-Reported Executive Functioning
+  in Preschool-Aged Deaf and Hard of Hearing Children
+author:
+- Corina Coodwin, Ph.D.
+- Emily Carrigan, Ph.D. (code author)
+- Kristin Walker (code co-author)
+- Marie Coppola, Ph.D
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+---
+
+```{r echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(root.dir = '/Desktop', tidy=TRUE)
+```
+
+## Load Packages  
+Load the following libraries. If they are not installed, run install.packages ("packagename")
+```{r results='hide', warning=FALSE, message=FALSE}
+#from https://www.vikram-baliga.com/blog/2015/7/19/a-hassle-free-way-to-verify-that-r-packages-are-installed-and-loaded
+packages = c("tidyverse","ggplot2","beeswarm","colorspace", "stargazer", "qwraps2", "gridExtra","ggpubr","car","olsrr","ggbeeswarm", "broom", "rmarkdown", "table1", "kableExtra", "epitools", "FSA", "Hmisc", "ufs")
+package.check <- lapply(packages, FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE)
+    library(x, character.only = TRUE)
+  }
+})
+
+#verify they are loaded
+search()
+```
+
+## Setup Dataframes
+First, import the data from the data (CSV) file
+```{r import_data}
+#setwd("~/etc") #This should be wherever your file is saved
+BRIEF <- read.csv("SLaM_BRIEF-P raw data 20200911.csv", na.strings = c("N/A", "", "Unknown", "Excluded"))
+```
+<br>
+
+Then, subset imported dataframe to remove participants missing age or SES information. We also removed deaf participants who had unilateral hearing loss. 
+<ul>
+  <li>This results in **`r nrow(subset(BRIEF, BRIEF$AgeMonths < 100 & BRIEF$AgeMonths!="" & BRIEF$SES..3.66.!="" & BRIEF$UnilateralHearingLoss. == "No"))` participants**</li>
+</ul>
+
+Add 4 columns:  
+<ul>
+  <li>Language Modality</li>
+  <li>Language Timing</li>
+  <li>4-group split</li>
+  <li>3-way group split</li>
+</ul>  
+
+```{r data_prep}
+BRIEF <- subset(BRIEF, BRIEF$AgeMonths < 100 & BRIEF$AgeMonths!="" & BRIEF$SES..3.66.!="" & BRIEF$UnilateralHearingLoss. == "No")
+
+BRIEF$Language_Modality <- factor(ifelse(BRIEF$Group_4cat == "English Early" | BRIEF$Group_4cat == "English Later", "English", "ASL"), levels = c("English", "ASL"))
+BRIEF$Language_Timing <- factor(as.character(BRIEF$Group_2cat), levels = c("Early", "Later"), exclude="")
+
+BRIEF$LanguageGroup <- as.factor(factor(as.character(BRIEF$Group_4cat), levels = c("English Early", "ASL Early", "English Later", "ASL Later"), labels = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), exclude=NA))
+
+BRIEF$Hearing_Level_3_Cat <- as.factor(factor(as.character(BRIEF$Hearing_Level_3_Cat), levels = c("TH", "deaf", "HoH"), labels = c("Typically Hearing", "Deaf", "Hard of Hearing"), exclude=NA))
+
+BRIEF$Hearing.Device <- dplyr::recode(BRIEF$Hearing.Device, "BAHA" = "Other")
+BRIEF$Hearing.Device <- as.factor(factor(as.character(BRIEF$Hearing.Device), levels = c("HA", "CI", "HA & CI", "Other", "None"), labels = c("Hearing Aid", "Cochlear Implant", "Hearing Aid & Cochlear Implant", "Other", "None"), exclude=NA))
+
+#Recode Race to have fewer categories
+BRIEF$Race_recoded <- dplyr::recode(as.character(BRIEF$Race), 'Asian' = "Asian", 'Black or African American'="Black or African American", 'More than One'="More than one", 'Other'="Other/Missing", 'Unsure, or prefer not to answer' = "Other/Missing", 'White'="White", .missing="Other/Missing")
+
+#update ORDER of groups
+BRIEF$Race_recoded <- factor(BRIEF$Race_recoded, levels = c("Asian", "Black or African American", "White", "More than one", "Other/Missing"), labels = c("Asian", "Black or African American", "White", "More than one", "Other/Missing"))
+
+#Recode Ethnicity to have fewer categories
+BRIEF$Ethnicity_recoded <- dplyr::recode(as.character(BRIEF$Ethnicity), 'Hispanic' = "Hispanic", 'NonHispanic'="Non-Hispanic", 'PreferNotToAnswer'="Prefer not to answer", .missing="Missing")
+
+#update ORDER of groups
+BRIEF$Ethnicity_recoded <-factor(BRIEF$Ethnicity_recoded, levels = c("Hispanic", "Non-Hispanic", "Prefer not to answer", "Missing"), labels = c("Hispanic", "Non-Hispanic", "Prefer not to answer", "Missing"))
+```
+<br>
+
+
+Create dataframe for participants with Age of Auditory Exposure and Age of Language Exposure
+```{r Age of Language & Auditory Exposure}
+BRIEF <- dplyr::mutate(BRIEF, AoAE = ifelse(BRIEF$Age.of.Auditory.Exposure..mo.=="None", as.character(BRIEF$AgeMonths), as.character(BRIEF$Age.of.Auditory.Exposure..mo.)))
+
+BRIEF$AoAE <- as.integer(BRIEF$AoAE)
+
+BRIEF_AgeOf <- subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!='')
+
+```
+<ul>
+  <li>*This is the dataframe used for linear models in Question 2*</li>
+  1. Create numerical "AoAE" variable from Age of Auditory Exposure variable, converting "None" to current age
+  2. Change structure of Age of Auditory Exposure from character to integer
+  3. Remove participants for whom either of these two variables is missing
+  4. This results in **`r nrow(subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!=''))` participants**
+</ul>
+<br>
+
+Create dataframe with participants who are age appropriate for the BRIEF-P (less than 5 years 11 Months old)  
+<ul>
+  <li>*This is the dataframe used in Question 3 Analyses*</li>
+  <li>**`r nrow(subset(BRIEF, BRIEF$AgeMonths <= 71))` participants**</li>
+</ul>  
+```{r age_appropriate_df}
+BRIEF_AgeApp <- subset(BRIEF, BRIEF$AgeMonths <= 71)
+```
+
+<br>
+
+***  
+
+## Demographic Information
+#### Demographics for the Entire Sample
+```{r}
+table1::label(BRIEF$AgeMonths) <- "Age (Months)"
+table1::label(BRIEF$SES..3.66.) <- "SES"
+table1::label(BRIEF$Sex) <- "Sex"
+table1::label(BRIEF$Race_recoded) <- "Race"
+table1::label(BRIEF$Ethnicity_recoded) <- "Ethnicity"
+ 
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded, data = BRIEF)
+```
+
+<br> 
+
+#### Table 1.
+```{r Table_1}
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded  | LanguageGroup, data = BRIEF, overall=F)
+```
+<br>
+
+#### Comparing SES across Language Groups
+```{r SES_x_LangGrp}
+ggboxplot(BRIEF, x = "LanguageGroup", y = "SES..3.66.", 
+          color = "LanguageGroup",
+          order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
+          ylab = "SES", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=SES..3.66.))+ geom_histogram(binwidth=10) + facet_grid(~LanguageGroup)
+leveneTest(SES..3.66.~LanguageGroup, data=BRIEF)
+SES_LangGrp <- kruskal.test(SES..3.66.~LanguageGroup, data=BRIEF)
+SES_LangGrp 
+
+dunnTest(SES..3.66.~LanguageGroup, data=BRIEF, method="hochberg")
+#selected hochberg correction method referencing this site: https://towardsdatascience.com/an-overview-of-methods-to-address-the-multiple-comparison-problem-310427b3ba92
+```
+
+**Findings**:
+<ul>
+  <li> Later ASL has significantly lower SES than Typically Hearing </li>
+  <li> No other between-group differences in SES </li>
+</ul>
+<br>
+
+#### Comparing Age across Language Groups
+```{r Age_x_LangGrp}
+ggboxplot(BRIEF, x = "LanguageGroup", y = "AgeMonths", 
+          color = "LanguageGroup",
+          order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
+          ylab = "Age (Months)", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=AgeMonths))+ geom_histogram(binwidth=6) + facet_grid(~LanguageGroup)
+leveneTest(AgeMonths~LanguageGroup, data=BRIEF)
+Age_LangGrp <- kruskal.test(AgeMonths~LanguageGroup, data=BRIEF)
+Age_LangGrp 
+
+dunnTest(AgeMonths~LanguageGroup, data=BRIEF, method="hochberg")
+```
+
+**Findings**:
+<ul>
+  <li> Later ASL group significantly older than Typically Hearing group </li>
+  <li> No other between-group differences in Age </li>
+</ul>
+<br>
+
+#### Table 2.
+```{r Table_2}
+table1::label(BRIEF$Hearing_Level_3_Cat) <- "Pre-device hearing level (3 Category)"
+table1::label(BRIEF$Hearing.Device) <- "Type of Hearing Device"
+table1::label(BRIEF$AoAE) <- "Age of First Auditory Exposure (Months)"
+table1::label(BRIEF$Age.of.Language.Exposure..mo.) <- "Age of First Language Exposure (Months)"
+
+table1::table1(~Hearing_Level_3_Cat + Hearing.Device + AoAE + Age.of.Language.Exposure..mo.| LanguageGroup, data = BRIEF, overall=F)
+```
+<br>
+
+
+#### Comparing Age of Auditory Exposure across Language Groups
+```{r AoAE_x_LangGrp}
+ggboxplot(BRIEF, x = "LanguageGroup", y = "AoAE", 
+          color = "LanguageGroup",
+          order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
+          ylab = "Age of Auditory Exposure (Months)", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=AoAE))+ geom_histogram(binwidth=15) + facet_grid(~LanguageGroup)
+leveneTest(AoAE~LanguageGroup, data=BRIEF)
+AoAE_LangGrp <- kruskal.test(AoAE~LanguageGroup, data=BRIEF)
+AoAE_LangGrp 
+
+dunnTest(AoAE~LanguageGroup, data=BRIEF, method="hochberg")
+```
+
+**Findings**:
+<ul>
+  <li> Typically hearing group has significantly earlier age of auditory exposure than all three DHH groups (as expected)</li>
+  <li> Later English group did not differ in terms of age of auditory exposure compared to both Early and Later ASL groups</li>
+  <li> Early and Later ASL groups did not differ in terms of their age of auditory exposure</li>
+</ul>
+<br>
+
+#### Comparing Age of Language Exposure across Language Groups
+```{r AoLE_X_LangGrp}
+ggboxplot(BRIEF, x = "LanguageGroup", y = "Age.of.Language.Exposure..mo.", 
+          color = "LanguageGroup",
+          order = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"),
+          ylab = "Age of Language Exposure (Months)", xlab = "Language Group")
+ggplot(data=BRIEF, mapping=aes(x=Age.of.Language.Exposure..mo.))+ geom_histogram(binwidth=10) + facet_grid(~LanguageGroup)
+leveneTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
+AoLE_LangGrp <- kruskal.test(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF)
+AoLE_LangGrp 
+
+dunnTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF, method="hochberg")
+```
+**Findings**:
+<ul>
+  <li> Both Early groups significantly different from both Later groups (as expected)</li>
+  <li> Later ASL group does not differ in age of language exposure compared to Later English group</li>
+</ul>
+<br>
+
+***
+## Results  
+### **Question 1: Do DHH children with access to sign language but not auditory input from birth exhibit executive functioning skills comparable to their typically-hearing peers?**
+*Approach: Compare (via Welch's t-tests) the BRIEF raw scores of Early English group to those of Early ASL group*
+<br>
+
+Create dataframe with only children exposed to language early and perform t-tests for all BRIEF-P scales  
+```{r subset_EarlyGrps}
+BRIEF_early <- subset(BRIEF_AgeOf, BRIEF_AgeOf$Language_Timing=="Early")
+```
+<br>
+
+#### Table 3.
+BRIEF Scores & Welch two sample t-tests for two "Early" groups 
+```{r Early Grp BRIEF Scores}
+table1::label(BRIEF_early$GEC_RawScore) <- "Global Executive Composite"
+table1::label(BRIEF_early$Inhibit_RawScore) <- "Inhibition"
+table1::label(BRIEF_early$Shift_RawScore) <- "Shift"
+table1::label(BRIEF_early$Emotional.Control_RawScore) <- "Emotional Control"
+table1::label(BRIEF_early$Working.Memory_RawScore) <- "Working Memory"
+table1::label(BRIEF_early$Plan.Organize_RawScore) <- "Plan/Organize"
+
+table1(~GEC_RawScore + Inhibit_RawScore + Shift_RawScore + Emotional.Control_RawScore + Working.Memory_RawScore + Plan.Organize_RawScore | Language_Modality, data = BRIEF_early, overall=F)
+
+t.test(BRIEF_early$GEC_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Inhibit_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Shift_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Emotional.Control_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Working.Memory_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Plan.Organize_RawScore~BRIEF_early$Language_Modality)
+
+```
+**Findings**: Early ASL group did not significantly differ from Typically Hearing group on any subscale 
+ ***  
+<br>
+
+### **Question 2: Do age of access to auditory input and age of language exposure significantly predict executive functioning?**  
+<p>*Approach: Linear regression models for the BRIEF-P raw scores on general composite score and each subscale predicted by age of auditory and age of language exposure, and other demographic characteristics (SES, sex, age)*</p>
+Also testing whether other demographic variables or ways of characterizing group differences (Length of Auditory Exposure, Language Modality) are better predictive of BRIEF scores
+
+#### Checking correlations between continuous (numerical) predictors
+```{r Predictor Correlation Matrix}
+## Function below from: http://www.sthda.com/english/wiki/correlation-matrix-formatting-and-visualization
+num_predictors <- BRIEF_AgeOf[, c("SES..3.66.", "AgeMonths", "Age.of.Language.Exposure..mo.", "AoAE")]
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+    )
+}
+BRIEF_num_pred <- rcorr(as.matrix(num_predictors), type = c("pearson"))
+flattenCorrMatrix(BRIEF_num_pred$r, BRIEF_num_pred$P)
+```
+**Findings**:
+<ul>
+  <li>SES is not significantly correlated with any other continuous predictors </li>
+  <li>Age correlated with both Age of Language Exposure and Age of Auditory Exposure (unsurprising)  </li>
+  <li>Age of Language exposure significantly correlated with Age of Auditory Exposure (also unsurprising given that this will be correlated for participants learning spoken English, which is >50% of our sample) </li>
+</ul>
+<br>
+
+#### **Global Executive Composite Models**
+Step 1. Base Model (Demographic variables only):  
+```{r}
+overall_all_base <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(overall_all_base)
+AIC(overall_all_base)
+```
+<br>
+
+Step 2. Add Age of Language Exposure:  
+```{r}
+overall_all_AoLE <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.)
+summary(overall_all_AoLE)
+AIC(overall_all_AoLE)
+```
+<br>
+
+**Compare Model from Step 2 to model from Step 1**:
+```{r}
+anova(overall_all_base, overall_all_AoLE)
+```
+<br>
+
+3a. Add Age of Auditory Exposure:
+```{r}
+overall_all_AoLE_AoAE <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+AoAE)
+summary(overall_all_AoLE_AoAE) 
+AIC(overall_all_AoLE_AoAE)
+```
+<br>
+
+
+3b. Add Length of Auditory Experience:
+```{r}
+overall_all_AoLE_LoAE <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Length.of.Auditory.Exposure)
+summary(overall_all_AoLE_LoAE)
+AIC(overall_all_AoLE_LoAE)
+```
+<br>
+
+
+3c. Add Modality:
+```{r}
+overall_all_AoLE_Modality <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Language_Modality)
+summary(overall_all_AoLE_Modality)
+AIC(overall_all_AoLE_Modality)
+```
+<br>
+
+
+3d.Add Hearing Status (3-category):
+```{r}
+overall_all_AoLE_HearStat <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Hearing_Level_3_Cat)
+summary(overall_all_AoLE_HearStat)
+AIC(overall_all_AoLE_HearStat)
+```
+<br>
+
+
+**Compare Models from Step 3a-c to model from Step 2**:
+```{r}
+anova(overall_all_AoLE, overall_all_AoLE_AoAE)
+anova(overall_all_AoLE, overall_all_AoLE_Modality)
+anova(overall_all_AoLE, overall_all_AoLE_LoAE)
+```
+**Findings**: Age of auditory exposure, length of auditory exposure, and language modality are not significant predictors of GEC raw scores, and their addition does not improve model fit.
+<br>
+<p>*We cannot do a direct comparison of model in step 3d to the model in step 2 because we are missing hearing status information for 12 participants (mostly Early and Later ASL).  However, even in the model in step 3d, Hearing Status is not a significant predictor of BRIEF scores, and Age of Language Exposure is.*</p>
+
+<br>
+
+
+**Checking assumptions for best-fit GEC model**
+```{r GEC Model Assumptions, warning=FALSE}
+ols_plot_resid_qq(overall_all_AoLE)
+ols_test_normality(overall_all_AoLE)
+ols_plot_resid_hist(overall_all_AoLE)
+ols_test_correlation(overall_all_AoLE)
+ols_plot_resid_fit(overall_all_AoLE)
+```
+<br>
+
+
+#### **Inhibition Models**
+Step 1. Base Model:
+```{r}
+inhibition_all_base <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(inhibition_all_base)
+AIC(inhibition_all_base)
+```
+<br>
+
+Step 2. Add Age of Language Exposure:
+```{r}
+inhibition_all_AoLE <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.)
+summary(inhibition_all_AoLE)
+AIC(inhibition_all_AoLE)
+```
+<br>
+
+**Compare Model with Age of Language Exposure to base demographic model**:
+```{r}
+anova(inhibition_all_base, inhibition_all_AoLE)
+```
+<br>
+
+3a. Add Age of Auditory Experience:
+```{r}
+inhibition_all_AoLE_AoAE <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+AoAE)
+summary(inhibition_all_AoLE_AoAE)
+AIC(inhibition_all_AoLE_AoAE)
+```
+<br>
+
+3b. Add Length of Auditory Exposure:
+```{r}
+inhibition_all_AoLE_LoAE <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Length.of.Auditory.Exposure)
+summary(inhibition_all_AoLE_LoAE)
+AIC(inhibition_all_AoLE_LoAE)
+```
+<br>
+
+3c. Add Modality:
+```{r}
+inhibition_all_AoLE_Modality <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Language_Modality)
+summary(inhibition_all_AoLE_Modality)
+AIC(inhibition_all_AoLE_Modality)
+```
+<br>
+
+3d. Add Hearing Status (3-category):
+```{r}
+inhibition_all_AoLE_HearStat <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Hearing_Level_3_Cat)
+summary(inhibition_all_AoLE_HearStat)
+AIC(inhibition_all_AoLE_HearStat)
+```
+<br>
+
+**Compare Models from Step 3a-c to model from Step 2**:
+```{r Inhibition model comparison anovas}
+anova(inhibition_all_AoLE, inhibition_all_AoLE_AoAE)
+anova(inhibition_all_AoLE, inhibition_all_AoLE_Modality)
+anova(inhibition_all_AoLE, inhibition_all_AoLE_LoAE)
+```
+<br>
+
+**Checking assumptions for best-fit Inhibition model**
+```{r Inibition Model Assumptions, warning=FALSE}
+ols_plot_resid_qq(inhibition_all_AoLE)
+ols_test_normality(inhibition_all_AoLE)
+ols_plot_resid_hist(inhibition_all_AoLE)
+ols_test_correlation(inhibition_all_AoLE)
+ols_plot_resid_fit(inhibition_all_AoLE)
+```
+<br>
+
+#### **Shift Models**
+Step 1. Base Model:
+```{r}
+shift_all_base <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(shift_all_base)
+AIC(shift_all_base)
+```
+<br>
+
+Step 2. Add Age of Language Exposure:
+```{r}
+shift_all_AoLE <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.)
+summary(shift_all_AoLE)
+AIC(shift_all_AoLE)
+```
+<br>
+
+**Compare Model with Age of Language Exposure to base demographic model**:
+```{r}
+anova(shift_all_base, shift_all_AoLE)
+```
+<br>
+
+3a. Add Age of Auditory Experience:
+```{r}
+shift_all_AoLE_AoAE <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+AoAE)
+summary(shift_all_AoLE_AoAE)
+AIC(shift_all_AoLE_AoAE)
+```
+<br>
+
+3b. Add Length of Auditory Exposure:
+```{r}
+shift_all_AoLE_LoAE <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Length.of.Auditory.Exposure)  
+summary(shift_all_AoLE_LoAE)
+AIC(shift_all_AoLE_LoAE)
+```
+<br>
+
+3c. Add Modality:
+```{r}
+shift_all_AoLE_Modality <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Language_Modality)  
+summary(shift_all_AoLE_Modality)
+AIC(shift_all_AoLE_Modality)
+```
+<br>
+
+3d. Add Hearing Status (3-category):
+```{r}
+shift_all_AoLE_HearStat <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Hearing_Level_3_Cat)
+summary(shift_all_AoLE_HearStat)
+AIC(shift_all_AoLE_HearStat)
+```
+<br>
+
+**Compare Models from Step 3a-c to model from Step 2**:
+```{r Shift model comparison anovas}
+anova(shift_all_AoLE, shift_all_AoLE_AoAE)
+anova(shift_all_AoLE, shift_all_AoLE_Modality)
+anova(shift_all_AoLE, shift_all_AoLE_LoAE)
+```
+<br>
+
+**Checking assumptions for best-fit Shift model**
+```{r Shift Model Assumptions, warning=FALSE}
+ols_plot_resid_qq(shift_all_AoLE)
+ols_test_normality(shift_all_AoLE)
+ols_plot_resid_hist(shift_all_AoLE)
+ols_test_correlation(shift_all_AoLE)
+ols_plot_resid_fit(shift_all_AoLE)
+```
+
+<br>
+
+#### **Emotional Control Models**
+Step 1. Base Model:
+```{r}
+emotctrl_all_base <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(emotctrl_all_base)
+```
+<br>
+
+Step 2. Add Age of Language Exposure:
+```{r}
+emotctrl_all_AoLE <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.)
+summary(emotctrl_all_AoLE)
+```
+<br>
+
+**Compare Model with Age of Language Exposure to base demographic model**:
+```{r}
+anova(emotctrl_all_base, emotctrl_all_AoLE)
+```
+<br>
+
+
+3a. Add Age of Auditory Experience:
+```{r}
+emotctrl_all_AoLE_AoAE <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+AoAE)
+summary(emotctrl_all_AoLE_AoAE)
+```
+<br>
+
+3b. Add Length of Auditory Experience:
+```{r}
+emotctrl_all_AoLE_LoAE <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Length.of.Auditory.Exposure)
+summary(emotctrl_all_AoLE_LoAE)
+```
+<br>
+
+3c. Add Modality:
+```{r}
+emotctrl_all_AoLE_Modality <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Language_Modality)
+summary(emotctrl_all_AoLE_Modality)
+```
+<br>
+
+3d. Add Hearing Status (3-category):
+```{r}
+emotctrl_all_AoLE_HearStat <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Hearing_Level_3_Cat)
+summary(emotctrl_all_AoLE_HearStat)
+```
+
+<br>
+
+**Compare Models from Step 3a-c to model from Step 2**:
+```{r Emotional Control model comparison anovas}
+anova(emotctrl_all_AoLE, emotctrl_all_AoLE_AoAE)
+anova(emotctrl_all_AoLE, emotctrl_all_AoLE_Modality)
+anova(emotctrl_all_AoLE, emotctrl_all_AoLE_LoAE)
+```
+
+<br>
+
+**Checking assumptions for best-fit Emotional Control model**
+```{r Emotional Control Model Assumptions, warning=FALSE}
+ols_plot_resid_qq(emotctrl_all_AoLE)
+ols_test_normality(emotctrl_all_AoLE)
+ols_plot_resid_hist(emotctrl_all_AoLE)
+ols_test_correlation(emotctrl_all_AoLE)
+ols_plot_resid_fit(emotctrl_all_AoLE)
+```  
+
+<br>
+
+#### **Working Memory Models**
+Step 1. Base Model:
+```{r}
+wm_all_base <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(wm_all_base)
+AIC(wm_all_base)
+```
+<br>
+
+Step 2. Add Age of Language Exposure:
+```{r}
+wm_all_AoLE <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.)
+summary(wm_all_AoLE)
+AIC(wm_all_AoLE)
+```
+<br>
+
+**Compare Model with Age of Language Exposure to base demographic model**:
+```{r}
+anova(wm_all_base, wm_all_AoLE)
+```
+<br>
+
+3a. Add Age of Auditory Experience:
+```{r}
+wm_all_AoLE_AoAE <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+AoAE)
+summary(wm_all_AoLE_AoAE)
+AIC(wm_all_AoLE_AoAE)
+```
+<br>
+
+3b. Add Length of Auditory Experience:
+```{r}
+wm_all_AoLE_LoAE <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Length.of.Auditory.Exposure)
+summary(wm_all_AoLE_LoAE)
+AIC(wm_all_AoLE_LoAE)
+```
+<br>
+
+3c. Add Modality:
+```{r}
+wm_all_AoLE_Modality <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Language_Modality)
+summary(wm_all_AoLE_Modality)
+AIC(wm_all_AoLE_Modality)
+```
+<br>
+
+3d. Add Hearing Status (3-category):
+```{r}
+wm_all_AoLE_HearStat <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Hearing_Level_3_Cat)
+summary(wm_all_AoLE_HearStat)
+AIC(wm_all_AoLE_HearStat)
+```
+<br>
+
+**Compare Models from Step 3a-c to model from Step 2**:
+```{r Working Memory model comparison anovas}
+anova(wm_all_AoLE, wm_all_AoLE_AoAE)
+anova(wm_all_AoLE, wm_all_AoLE_Modality)
+anova(wm_all_AoLE, wm_all_AoLE_LoAE)
+```
+<br>
+
+**Checking assumptions for best-fit Working Memory model**
+```{r Working Memory Model Assumptions, warning=FALSE}
+ols_plot_resid_qq(wm_all_AoLE)
+ols_test_normality(wm_all_AoLE)
+ols_plot_resid_hist(wm_all_AoLE)
+ols_test_correlation(wm_all_AoLE)
+ols_plot_resid_fit(wm_all_AoLE)
+```  
+
+<br>
+
+#### **Planning/Organization Models**
+Step 1. Base Model:
+```{r}
+plan_all_base <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(plan_all_base)
+AIC(plan_all_base)
+```  
+<br>
+
+Step 2. Add Age of Language Exposure:
+```{r}
+plan_all_AoLE <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.)
+summary(plan_all_AoLE)
+AIC(plan_all_AoLE)
+```  
+<br>
+
+**Compare Model with Age of Language Exposure to base demographic model**:
+```{r}
+anova(plan_all_base, plan_all_AoLE)
+```
+<br>
+
+3a. Add Age of Auditory Experience:
+```{r}
+plan_all_AoLE_AoAE <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+AoAE)
+summary(plan_all_AoLE_AoAE)
+AIC(plan_all_AoLE_AoAE)
+``` 
+<br>
+
+3b. Add Length of Auditory Experience:
+```{r}
+plan_all_AoLE_LoAE <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Length.of.Auditory.Exposure)
+summary(plan_all_AoLE_LoAE)
+AIC(plan_all_AoLE_LoAE)
+```  
+<br>
+
+3c. Add Modality:
+```{r}
+plan_all_AoLE_Modality <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+Language_Modality)
+summary(plan_all_AoLE_Modality)
+AIC(plan_all_AoLE_Modality)
+```  
+<br>
+
+3d. Add Hearing Status (3-category):
+```{r}
+plan_all_AoLE_HearStat <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+Age.of.Language.Exposure..mo.+ Hearing_Level_3_Cat)
+summary(plan_all_AoLE_HearStat)
+AIC(plan_all_AoLE_HearStat)
+```  
+<br>
+
+**Compare Models from Step 3a-c to model from Step 2**:
+```{r Plan model comparison}
+anova(plan_all_AoLE, plan_all_AoLE_AoAE)
+anova(plan_all_AoLE, plan_all_AoLE_Modality)
+anova(plan_all_AoLE, plan_all_AoLE_LoAE)
+```
+<br>
+
+**Checking assumptions for best-fit Plan/Organize model**
+```{r Plan Model Assumptions, warning=FALSE}
+ols_plot_resid_qq(plan_all_AoLE)
+ols_test_normality(plan_all_AoLE)
+ols_plot_resid_hist(plan_all_AoLE)
+ols_test_correlation(plan_all_AoLE)
+ols_plot_resid_fit(plan_all_AoLE)
+```  
+<br>
+
+
+#### Table 4.
+```{r  Table4, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(overall_all_AoLE_AoAE, inhibition_all_AoLE_AoAE, shift_all_AoLE_AoAE, emotctrl_all_AoLE_AoAE, wm_all_AoLE_AoAE, plan_all_AoLE_AoAE, type= "html", title = "Linear Regression Results for Raw Scores", align=TRUE, dep.var.labels=c("Global Executive Composite", "Inhibition", "Shift", "Emotional Control", "Working Memory", "Planning/Organization"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)"), out="Table4.html")
+```  
+<br>
+
+
+#### Figure 1.
+```{r fig.width=16, fig.height=12, message=FALSE}
+G <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y=GEC_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Global Executive Composite (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9, ) + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
+
+I <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y=Inhibit_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Inhibition (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9) + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
+
+S <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y=Shift_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Shift (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9) + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
+
+E <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y= Emotional.Control_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Emotional Control (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9)  + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
+
+W <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y= Working.Memory_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))  + ylab("Working Memory (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9)  + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
+
+P <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y= Plan.Organize_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Plan/Organize (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9) + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
+
+ggarrange(G, I, S, E, W, P, ncol=3, nrow=2, common.legend = TRUE, legend="bottom")
+```  
+<br>
+  
+### **Question 3: Do children with later or degraded access to auditory and/or language input exhibit clinically-significant deficits in executive functioning skills relative to typically-hearing peers?**
+
+This analysis looks at T-scores, and therefore only includes participants who were within the normed age range for the BRIEF-P
+
+
+#### Table 5 data & analyses 
+##### **Risk Ratios (Relative Risk) and 95% confidence intervals for Global Executive Composite T-scores**
+```{r GEC RR 65, warnings=FALSE}
+BRIEF_AgeApp_GEC_over65 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Global Executive Composite T-score < 65 (n)" = sum(GEC_Tscore < 65), "Global Executive Composite T-score > 65 (n)" = sum(GEC_Tscore >= 65))
+
+BRIEF_AgeApp_GEC_over65 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+GEC_rr <- matrix(c(41, 3, 19, 1, 17, 3, 12, 2), 4, 2, byrow=TRUE)
+dimnames(GEC_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "GEC T-score" = c("Not Clinically Significant", "Clinically Significant"))
+GEC_rr
+riskratio.small(GEC_rr, verbose=TRUE)
+```
+<br>
+  
+##### **Inhibit Risk Ratios and 95% Confidence Intervals**
+```{r Inhibit RR 65, warnings=FALSE}
+BRIEF_AgeApp_Inhibit_over65 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Inhibit T-score < 65 (n)" = sum(Inhibit_Tscore < 65), "Inhibit T-score > 65 (n)" = sum(Inhibit_Tscore >= 65))
+
+BRIEF_AgeApp_Inhibit_over65 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+Inhibit_rr <- matrix(c(42,2, 18, 2, 19, 1, 14, 0), 4, 2, byrow=TRUE)
+dimnames(Inhibit_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "GEC T-score" = c("Not Clinically Significant", "Clinically Significant"))
+Inhibit_rr
+riskratio.small(Inhibit_rr)
+```
+  
+##### **Shift Risk Ratios and 95% Confidence Intervals**
+```{r Shift RR 65, warnings=FALSE}
+BRIEF_AgeApp_Shift_over65 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Shift T-score < 65 (n)" = sum(Shift_Tscore < 65), "Shift T-score > 65 (n)" = sum(Shift_Tscore >= 65))
+
+BRIEF_AgeApp_Shift_over65 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+Shift_rr <- matrix(c(42,2,19,1, 18, 2, 13, 1), 4, 2, byrow=TRUE)
+dimnames(Shift_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Shift T-score" = c("Not Clinically Significant", "Clinically Significant"))
+Shift_rr
+riskratio.small(Shift_rr)
+```
+  
+##### **Emotional Control Risk Ratios and 95% Confidence Intervals**
+```{r Emotional Control RR 65, warnings=FALSE}
+BRIEF_AgeApp_EmoCtrl_over65 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Emotional Control T-score < 65 (n)" = sum(Emotional.Control_Tscore < 65), "Emotional Control T-score > 65 (n)" = sum(Emotional.Control_Tscore >= 65))
+
+BRIEF_AgeApp_EmoCtrl_over65 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+EmoCtrl_rr <- matrix(c(41,3,20,0, 18, 2, 12, 2), 4, 2, byrow=TRUE)
+dimnames(EmoCtrl_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Emotional Control T-score" = c("Not Clinically Significant", "Clinically Significant"))
+EmoCtrl_rr
+riskratio.small(EmoCtrl_rr)
+```
+  
+##### **Working Memory Risk Ratios and 95% Confidence Intervals**
+```{r Working Memory RR 65, warnings=FALSE}
+BRIEF_AgeApp_WorkMem_over65 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Working Memory T-score < 65 (n)" = sum(Working.Memory_Tscore < 65), "Working Memory T-score > 65 (n)" = sum(Working.Memory_Tscore >= 65))
+
+BRIEF_AgeApp_WorkMem_over65 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+WorkMem_rr <- matrix(c(39,5,17,3, 18, 2, 13, 1), 4, 2, byrow=TRUE)
+dimnames(WorkMem_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Working Memory T-score" = c("Not Clinically Significant", "Clinically Significant"))
+WorkMem_rr
+riskratio.small(WorkMem_rr)
+```
+  
+##### **Plan/Organize Risk Ratios and 95% Confidence Intervals**
+```{r Planning RR 65, warnings=FALSE}
+BRIEF_AgeApp_PlanOrg_over65 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Plan/Organize T-score < 65 (n)" = sum(Plan.Organize_Tscore < 65), "Plan/Organize T-score > 65 (n)" = sum(Plan.Organize_Tscore >= 65))
+
+BRIEF_AgeApp_PlanOrg_over65 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+PlanOrg_rr <- matrix(c(41,3,19,1, 16, 4, 14, 0), 4, 2, byrow=TRUE)
+dimnames(PlanOrg_rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Plan/Organize T-score" = c("Not Clinically Significant", "Clinically Significant"))
+PlanOrg_rr
+riskratio.small(PlanOrg_rr)
+```
+
+<br>
+
+## Additional checks
+
+#### Check 1: Comparing stepwise models with AoAE added first
+<p>
+**Possible Issue**: Because Age of Language Exposure and Age of Auditory Exposure were significantly correlated, we need to determine whether they might actually be measuring same underlying construct
+</p>
+*Approach: See whether findings above (where Language but not Auditory exposure significantly predicts BRIEF scores) hold when predictors are added to the model in a different order *
+```{r Models AoAe Added b4 AoLE}
+overall_all_base <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(overall_all_base)
+overall_all_AoAE <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+AoAE)
+summary(overall_all_AoAE)
+
+anova(overall_all_base, overall_all_AoAE)
+
+overall_all_AoAE_AoLE <- lm(data=BRIEF_AgeOf, formula = GEC_RawScore~SES..3.66.+Sex+AgeMonths+AoAE+Age.of.Language.Exposure..mo.)
+summary(overall_all_AoAE_AoLE)
+anova(overall_all_AoAE, overall_all_AoAE_AoLE)
+
+#~~~~~#
+inhibition_all_base <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(inhibition_all_base)
+inhibition_all_AoAE <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+AoAE)
+summary(inhibition_all_AoAE)
+
+anova(inhibition_all_base, inhibition_all_AoAE)
+
+inhibition_all_AoAE_AoLE <- lm(data=BRIEF_AgeOf, formula = Inhibit_RawScore~SES..3.66.+Sex+AgeMonths+AoAE+Age.of.Language.Exposure..mo.)
+summary(inhibition_all_AoAE_AoLE)
+anova(inhibition_all_AoAE, inhibition_all_AoAE_AoLE)
+
+#~~~~~#
+shift_all_base <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths) 
+summary(shift_all_base)
+shift_all_AoAE <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+AoAE)  
+summary(shift_all_AoAE)
+
+anova(shift_all_base, shift_all_AoAE)
+
+shift_all_AoAE_AoLE <- lm(data=BRIEF_AgeOf, formula = Shift_RawScore~SES..3.66.+Sex+AgeMonths+AoAE+Age.of.Language.Exposure..mo.)  
+summary(shift_all_AoAE_AoLE)
+
+anova(shift_all_AoAE, shift_all_AoAE_AoLE)
+
+#~~~~~#
+emotctrl_all_base <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths)
+emotctrl_all_AoAE <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+AoAE)
+summary(emotctrl_all_AoAE)
+
+anova(emotctrl_all_base, emotctrl_all_AoAE)
+
+emotctrl_all_AoAE_AoLE <- lm(data=BRIEF_AgeOf, formula = Emotional.Control_RawScore~SES..3.66.+Sex+AgeMonths+AoAE+Age.of.Language.Exposure..mo.)
+summary(emotctrl_all_AoAE_AoLE)
+anova(emotctrl_all_AoAE, emotctrl_all_AoAE_AoLE)
+
+#~~~~~#
+wm_all_base <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(wm_all_base)
+wm_all_AoAE <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+AoAE)
+summary(wm_all_AoAE)
+
+anova(wm_all_base, wm_all_AoAE)
+
+wm_all_AoAE_AoLE <- lm(data=BRIEF_AgeOf, formula = Working.Memory_RawScore~SES..3.66.+Sex+AgeMonths+AoAE+Age.of.Language.Exposure..mo.)
+summary(wm_all_AoAE_AoLE)
+anova(wm_all_AoAE, wm_all_AoAE_AoLE)
+
+#~~~~~#
+plan_all_base <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths)
+summary(plan_all_base)
+plan_all_AoAE <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+AoAE)
+summary(plan_all_AoAE)
+anova(plan_all_base, plan_all_AoAE)
+
+plan_all_AoAE_AoLE <- lm(data=BRIEF_AgeOf, formula = Plan.Organize_RawScore~SES..3.66.+Sex+AgeMonths+AoAE+Age.of.Language.Exposure..mo.)
+summary(plan_all_AoAE_AoLE)
+anova(plan_all_AoAE, plan_all_AoAE_AoLE)
+```
+<br>
+
+**Findings**: For all subscales, adding Age of Auditory Exposure to the model with demographic variables *did not improve model fit* (and Age of Auditory Exposure was *not* a significant predictor of any subsale), but subsequently adding Age of Language exposure to the model with Age of Auditory Exposure and demographic variables *did* significantly improve model fit (and Age of Language Exposure was a significant predictor of BRIEF-P scores in almost all models). 
+<br>
+<br>
+
+#### Check 2: Age-appropriate vs. non-age-appropriate participants 
+29 participants in the models included in this paper were outside the normed age range for the BRIEF-P (this is why we used raw scores in models above)
+<p>
+**Possible issue**: If this "non-age-appropriate" group of participants is largely from the Early ASL group, and/or has higher SES, our finding that Early exposure to language is the driving factor in EF development may not be valid </p>
+*Approach: Checking the Age, SES, and Language Group of participants who were "age-appropriate" for the BRIEF-P compared to those who were not*
+```{r}
+table1::label(BRIEF_AgeOf$AgeMonths) <- "Age (Months)"
+table1::label(BRIEF_AgeOf$SES..3.66.) <- "SES"
+table1::label(BRIEF_AgeOf$LanguageGroup) <- "Language Group"
+
+
+table1::table1(~AgeMonths + SES..3.66. + LanguageGroup | Age.Appropriate., data = BRIEF_AgeOf, overall=T)
+```
+**Findings**:
+<ul>
+  <li>Overall, Later-exposed groups make up 70% of the non-age-appropriate group.</li>
+    <li>ASL Later kids make up 48% of the non age-appropriate sample, 14.5% of the age-appropriate sample, and 21.6% of the overall sample</li>
+    <li>English later kids make up 20.7% of the non age-appropriate sample,  26.4% of the age-appropriate sample, and 25.2% of the overall sample</li>
+  <li>
+</ul>
+<br>
+
+<p>
+Participants in the Later groups, specifically the Later ASL group, are over-represented in not having received age-appropriate BRIEF. This should *not* be a concern for our findings, because if the behaviors surveyed in the BRIEF-P were not appropriate for older kids, then we would *not* expect the older Later ASL group to have elevated BRIEF scores relative to early-exposed kids--**but they do**. 
+</p>
+<br>
+
+*Approach Pt 2: Re-run Chi-square with only age-appropriate subset to confirm the non-difference isn't driven by older Early ASL participants*
+**Create dataframe with only age-appropriate participants exposed to language early**
+```{r Subset Ape-appropriate Early Grps}
+BRIEF_early_AgeApp <- subset(BRIEF_AgeApp, BRIEF_AgeApp$Language_Timing=="Early")
+```
+<br>
+
+**BRIEF Scores & Welch two sample t-tests for two "Early" groups within Age-appropriate subset**
+```{r Ape Appropriate Early Grp BRIEF Scores}
+table1::label(BRIEF_early_AgeApp$GEC_RawScore) <- "Global Executive Composite"
+table1::label(BRIEF_early_AgeApp$Inhibit_RawScore) <- "Inhibition"
+table1::label(BRIEF_early_AgeApp$Shift_RawScore) <- "Shift"
+table1::label(BRIEF_early_AgeApp$Emotional.Control_RawScore) <- "Emotional Control"
+table1::label(BRIEF_early_AgeApp$Working.Memory_RawScore) <- "Working Memory"
+table1::label(BRIEF_early_AgeApp$Plan.Organize_RawScore) <- "Plan/Organize"
+
+table1(~GEC_RawScore + Inhibit_RawScore + Shift_RawScore + Emotional.Control_RawScore + Working.Memory_RawScore + Plan.Organize_RawScore | Language_Modality, data = BRIEF_early_AgeApp, overall=F)
+
+t.test(BRIEF_early_AgeApp$GEC_RawScore~BRIEF_early_AgeApp$Language_Modality)
+t.test(BRIEF_early_AgeApp$Inhibit_RawScore~BRIEF_early_AgeApp$Language_Modality)
+t.test(BRIEF_early_AgeApp$Shift_RawScore~BRIEF_early_AgeApp$Language_Modality)
+t.test(BRIEF_early_AgeApp$Emotional.Control_RawScore~BRIEF_early_AgeApp$Language_Modality)
+t.test(BRIEF_early_AgeApp$Working.Memory_RawScore~BRIEF_early_AgeApp$Language_Modality)
+t.test(BRIEF_early_AgeApp$Plan.Organize_RawScore~BRIEF_early_AgeApp$Language_Modality)
+
+```
+<br>
+
+
+
+
+## Supplementary Materials
+
+#### Table 1: Comparing Global Executive Composite Models
+```{r GEC model comparison, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(overall_all_base, overall_all_AoLE, overall_all_AoLE_AoAE, overall_all_AoLE_LoAE, overall_all_AoLE_Modality,overall_all_AoLE_HearStat, type= "html", title = "Linear Regression Results", align=TRUE, dep.var.labels=c("Global Executive Composite Raw Scores"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)", "Length of Auditory Experience (Months)", "Language Modality (ASL)", "Hearing Status (Deaf)", "Hearing Status (HoH)"), out="BRIEF_supp_table1.html")
+```
+<br>
+
+#### Table 2: Comparing Inhibition Models
+```{r   Inhibition model comparison, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(inhibition_all_base, inhibition_all_AoLE, inhibition_all_AoLE_AoAE, inhibition_all_AoLE_LoAE, inhibition_all_AoLE_Modality, inhibition_all_AoLE_HearStat, type= "html", title = "Linear Regression Results", align=TRUE, dep.var.labels=c("Inhibition Raw Scores"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)", "Length of Auditory Experience (Months)", "Language Modality (ASL)", "Hearing Status (Deaf)", "Hearing Status (HoH)"), out="BRIEF_supp_table2.html")
+```
+<br>
+
+#### Table 3: Comparing Shift Models.
+```{r   Shift model comparison, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(shift_all_base, shift_all_AoLE, shift_all_AoLE_AoAE, shift_all_AoLE_LoAE, shift_all_AoLE_Modality, shift_all_AoLE_HearStat, type= "html", title = "Linear Regression Results", align=TRUE, dep.var.labels=c("Shift Raw Scores"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)", "Length of Auditory Experience (Months)", "Language Modality (ASL)", "Hearing Status (Deaf)", "Hearing Status (HoH)"), out="BRIEF_supp_table3.html")
+```
+<br>
+
+#### Table 4: Comparing Emotional Control Models
+```{r   Emotional Control model comparison, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(emotctrl_all_base, emotctrl_all_AoLE, emotctrl_all_AoLE_AoAE, emotctrl_all_AoLE_LoAE, emotctrl_all_AoLE_Modality, emotctrl_all_AoLE_HearStat, type= "html", title = "Linear Regression Results", align=TRUE, dep.var.labels=c("Emotional Control Raw Scores"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)", "Length of Auditory Experience (Months)", "Language Modality (ASL)", "Hearing Status (Deaf)", "Hearing Status (HoH)"), out="BRIEF_supp_table4.html")
+```
+<br>
+
+#### Table 5: Comparing Working Memory Models
+```{r   Working Memory model comparison, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(wm_all_base, wm_all_AoLE, wm_all_AoLE_AoAE, wm_all_AoLE_LoAE, wm_all_AoLE_Modality,wm_all_AoLE_HearStat, type= "html", title = "Linear Regression Results", align=TRUE, dep.var.labels=c("Working Memory Raw Scores"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)", "Length of Auditory Experience (Months)", "Language Modality (ASL)", "Hearing Status (Deaf)", "Hearing Status (HoH)"), out="BRIEF_supp_table5.html")
+```
+<br>
+
+#### Table 6: Comparing Planning/Organization Models
+```{r Plan_organize model comparison, echo=T, results='hide', message=FALSE, warning=FALSE}
+stargazer(plan_all_base, plan_all_AoLE, plan_all_AoLE_AoAE, plan_all_AoLE_LoAE, plan_all_AoLE_Modality, plan_all_AoLE_HearStat, type= "html", title = "Linear Regression Results", align=TRUE, dep.var.labels=c("Planning/Organization Raw Scores"), covariate.labels=c("Socioeconomic Status (SES)", "Sex (Male)", "Age (Months)", "Age of Exposure to Language (Months)", "Age of Auditory Exposure (Months)", "Length of Auditory Experience (Months)", "Language Modality (ASL)", "Hearing Status (Deaf)", "Hearing Status (HoH)"), out="BRIEF_supp_table6.html")
+```  
+<br>
+
+
+#### Table 7: Demographic information for the subset of participants who were in the appropriate age range for the BRIEF-P
+```{r}
+table1::label(BRIEF_AgeApp$AgeMonths) <- "Age (Months)"
+table1::label(BRIEF_AgeApp$Sex) <- "Sex"
+table1::label(BRIEF_AgeApp$Race_recoded) <- "Race"
+table1::label(BRIEF_AgeApp$Ethnicity_recoded) <- "Ethnicity"
+table1::label(BRIEF_AgeApp$SES..3.66.) <- "SES"
+ 
+table1::table1(~AgeMonths + Sex + Race_recoded + Ethnicity_recoded + SES..3.66. | LanguageGroup, data = BRIEF_AgeApp, overall=F)
+```
+<br>
+
+#### Table 8. Relative Risk of Clinically-Elevated (T-score ≥ 60) Executive Functioning Deficits in DHH Participants
+
+##### **Risk Ratios (Relative Risk) and 95% confidence intervals for Global Executive Composite T-scores > 60**
+```{r GEC RR 60, warning=FALSE}
+BRIEF_AgeApp_GEC_over60 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Global Executive Composite T-score < 60 (n)" = sum(GEC_Tscore < 60), "Global Executive Composite T-score > 60 (n)" = sum(GEC_Tscore >= 60))
+
+BRIEF_AgeApp_GEC_over60 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+GEC_60rr <- matrix(c(39,5,17,3, 14, 6, 10, 4), 4, 2, byrow=TRUE)
+dimnames(GEC_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "GEC T-score" = c("Not Elevated", "Elevated"))
+riskratio.small(GEC_60rr)
+
+#DHH groups not significantly more likely to have elevated GEC T-scores relative to TH group, but the two later groups are close
+```
+<br>
+
+##### **Inhibit T-scores > 60 Risk Ratios and 95% Confidence Intervals**
+```{r Inhibit RR 60, warning=FALSE}
+BRIEF_AgeApp_Inhibit_over60 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Inhibit T-score < 60 (n)" = sum(Inhibit_Tscore < 60), "Inhibit T-score > 60 (n)" = sum(Inhibit_Tscore >= 60))
+
+BRIEF_AgeApp_Inhibit_over60 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+Inhibit_60rr <- matrix(c(39,5,16,4, 17, 3, 10, 4), 4, 2, byrow=TRUE)
+dimnames(Inhibit_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Inhibit T-score" = c("Not Elevated", "Elevated"))
+riskratio.small(Inhibit_60rr)
+#DHH groups *not* significantly more likely to have elevated Inhibit T-scores relative to TH group, but the Later ASL group close
+```
+<br>
+
+##### **Shift T-scores > 60 Risk Ratios and 95% Confidence Intervals**
+```{r Shift RR 60, warning=FALSE}
+BRIEF_AgeApp_Shift_over60 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Shift T-score < 60 (n)" = sum(Shift_Tscore < 60), "Shift T-score > 60 (n)" = sum(Shift_Tscore >= 60))
+
+BRIEF_AgeApp_Shift_over60 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+Shift_60rr <- matrix(c(42,2,18,2, 18, 2, 10, 4), 4, 2, byrow=TRUE)
+dimnames(Shift_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Shift T-score" = c("Not Elevated", "Elevated"))
+riskratio.small(Shift_60rr)
+#Later ASL group significantly more likely to have elevated Shift T-scores relative to TH group (3.75 times more likely) according to p-values (even though risk ratio CI does include 1)
+```
+<br>
+
+##### **Emotional Control T-scores > 60 Risk Ratios and 95% Confidence** Intervals
+```{r Emotional Control RR 60, warning=FALSE}
+BRIEF_AgeApp_EmoCtrl_over60 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Emotional Control T-score < 60 (n)" = sum(Emotional.Control_Tscore < 60), "Emotional Control T-score > 60 (n)" = sum(Emotional.Control_Tscore >= 60))
+
+BRIEF_AgeApp_EmoCtrl_over60 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+EmoCtrl_60rr <- matrix(c(33,11, 18,2, 18,2, 11,3), 4, 2, byrow=TRUE)
+dimnames(EmoCtrl_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Emotional Control T-score" = c("Not Elevated", "Elevated"))
+riskratio.small(EmoCtrl_60rr)
+#Later English borderline *less* likely than TH to have elevated Emotional Control T-scores (but there do seem to be an unexpectedly high number of TH kids in the "elevated" score range, and Later English group only on average 4 months older than TH kids)
+```
+<br>
+
+##### **Working Memory T-scores > 60 Risk Ratios and 95% Confidence Intervals**
+```{r Working Memory RR 60, warning=FALSE}
+BRIEF_AgeApp_WorkMem_over60 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Working Memory T-score < 60 (n)" = sum(Working.Memory_Tscore < 60), "Working Memory T-score > 60 (n)" = sum(Working.Memory_Tscore >= 60))
+
+BRIEF_AgeApp_WorkMem_over60 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+WorkMem_60rr <- matrix(c(38,6,16,4,15,5,8,6), 4, 2, byrow=TRUE)
+dimnames(WorkMem_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Working Memory T-score" = c("Not Elevated", "Elevated"))
+riskratio.small(WorkMem_60rr)
+#Later ASL significantly more likely to have elevated Working Memory T-scores relative to TH group
+```
+<br>
+
+##### **Plan/Organize T-scores > 60 Risk Ratios and 95% Confidence Intervals**
+```{r Planning RR 60, warning=FALSE}
+BRIEF_AgeApp_PlanOrg_over60 <- BRIEF_AgeApp %>% 
+    group_by(LanguageGroup) %>% 
+    summarise("Plan/Organize T-score < 60 (n)" = sum(Plan.Organize_Tscore < 60), "Plan/Organize T-score > 60 (n)" = sum(Plan.Organize_Tscore >= 60))
+
+BRIEF_AgeApp_PlanOrg_over60 %>%
+    kable() %>%  
+    kable_styling(bootstrap_options = "striped")
+
+#The numbers in this matrix are static generated from the code above. If the numbers in the matrix change, the code also needs to be altered
+PlanOrg_60rr <- matrix(c(37,7,17,3, 14, 6, 10, 4), 4, 2, byrow=TRUE)
+dimnames(PlanOrg_60rr) <- list("Group" = c("Typically Hearing", "Early ASL", "Later English", "Later ASL"), "Plan/Organize T-score" = c("Not Elevated", "Elevated"))
+riskratio.small(PlanOrg_60rr)
+#DHH groups *not* significantly more likely to have elevated Inhibit T-scores relative to TH group
+```
