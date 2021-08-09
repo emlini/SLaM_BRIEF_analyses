@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r echo=FALSE, include=FALSE}
-knitr::opts_chunk$set(root.dir = '/Desktop', tidy=TRUE)
+#knitr::opts_chunk$set(root.dir = '/Desktop', tidy=TRUE)
 ```
 
 ## Load Packages  
@@ -37,7 +37,7 @@ package.check <- lapply(packages, FUN = function(x) {
 search()
 ```
 
-## Setup Dataframes
+## Setup Primary Dataframe
 First, import the data from the data (CSV) file
 ```{r import_data}
 #setwd("~/etc") #This should be wherever your file is saved
@@ -83,36 +83,6 @@ BRIEF$Ethnicity_recoded <- dplyr::recode(as.character(BRIEF$Ethnicity), 'Hispani
 #update ORDER of groups
 BRIEF$Ethnicity_recoded <-factor(BRIEF$Ethnicity_recoded, levels = c("Hispanic", "Non-Hispanic", "Prefer not to answer", "Missing"), labels = c("Hispanic", "Non-Hispanic", "Prefer not to answer", "Missing"))
 ```
-<br>
-
-
-Create dataframe for participants with Age of Auditory Exposure and Age of Language Exposure
-```{r Age of Language & Auditory Exposure}
-BRIEF <- dplyr::mutate(BRIEF, AoAE = ifelse(BRIEF$Age.of.Auditory.Exposure..mo.=="None", as.character(BRIEF$AgeMonths), as.character(BRIEF$Age.of.Auditory.Exposure..mo.)))
-
-BRIEF$AoAE <- as.integer(BRIEF$AoAE)
-
-BRIEF_AgeOf <- subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!='')
-
-```
-<ul>
-  <li>*This is the dataframe used for linear models in Question 2*</li>
-  1. Create numerical "AoAE" variable from Age of Auditory Exposure variable, converting "None" to current age
-  2. Change structure of Age of Auditory Exposure from character to integer
-  3. Remove participants for whom either of these two variables is missing
-  4. This results in **`r nrow(subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!=''))` participants**
-</ul>
-<br>
-
-Create dataframe with participants who are age appropriate for the BRIEF-P (less than 5 years 11 Months old)  
-<ul>
-  <li>*This is the dataframe used in Question 3 Analyses*</li>
-  <li>**`r nrow(subset(BRIEF, BRIEF$AgeMonths <= 71))` participants**</li>
-</ul>  
-```{r age_appropriate_df}
-BRIEF_AgeApp <- subset(BRIEF, BRIEF$AgeMonths <= 71)
-```
-
 <br>
 
 ***  
@@ -180,6 +150,108 @@ dunnTest(AgeMonths~LanguageGroup, data=BRIEF, method="hochberg")
 </ul>
 <br>
 
+
+***
+## Results  
+### **Question 1: Do DHH children with access to sign language but not auditory input from birth exhibit executive functioning skills comparable to their typically-hearing peers?**
+*Approach: Compare (via Welch's t-tests) the BRIEF raw scores of Early English group to those of Early ASL group*
+<br>
+
+Create dataframe with only children exposed to language early and perform t-tests for all BRIEF-P scales  
+```{r subset_EarlyGrps}
+BRIEF_early <- subset(BRIEF, BRIEF$Language_Timing=="Early")
+```
+<br>
+
+#### Demographics for the Early-exposed subset
+```{r}
+table1::label(BRIEF_early$AgeMonths) <- "Age (Months)"
+table1::label(BRIEF_early$SES..3.66.) <- "SES"
+table1::label(BRIEF_early$Sex) <- "Sex"
+table1::label(BRIEF_early$Race_recoded) <- "Race"
+table1::label(BRIEF_early$Ethnicity_recoded) <- "Ethnicity"
+ 
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded, data = BRIEF_early)
+```
+
+<br> 
+
+#### Comparing demographics by Language Modality (within early-exposed subset) 
+```{r Early_exp_demographic_modality}
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded  | LanguageGroup, data = BRIEF_early, overall=F)
+```
+<br>
+
+#### Table 3.
+BRIEF Scores & Welch two sample t-tests for two "Early" groups 
+```{r Early Grp BRIEF Scores}
+table1::label(BRIEF_early$GEC_RawScore) <- "Global Executive Composite"
+table1::label(BRIEF_early$Inhibit_RawScore) <- "Inhibition"
+table1::label(BRIEF_early$Shift_RawScore) <- "Shift"
+table1::label(BRIEF_early$Emotional.Control_RawScore) <- "Emotional Control"
+table1::label(BRIEF_early$Working.Memory_RawScore) <- "Working Memory"
+table1::label(BRIEF_early$Plan.Organize_RawScore) <- "Plan/Organize"
+
+table1(~GEC_RawScore + Inhibit_RawScore + Shift_RawScore + Emotional.Control_RawScore + Working.Memory_RawScore + Plan.Organize_RawScore | Language_Modality, data = BRIEF_early, overall=F)
+
+t.test(BRIEF_early$GEC_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Inhibit_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Shift_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Emotional.Control_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Working.Memory_RawScore~BRIEF_early$Language_Modality)
+t.test(BRIEF_early$Plan.Organize_RawScore~BRIEF_early$Language_Modality)
+
+```
+**Findings**: Early ASL group did not significantly differ from Typically Hearing group on any subscale 
+ ***  
+<br>
+
+### **Question 2: Do age of access to auditory input and age of language exposure significantly predict executive functioning?**  
+<p>*Approach: Linear regression models for the BRIEF-P raw scores on general composite score and each subscale predicted by age of auditory and age of language exposure, and other demographic characteristics (SES, sex, age)*</p>
+Also testing whether other demographic variables or ways of characterizing group differences (Length of Auditory Exposure, Language Modality) are better predictive of BRIEF scores
+
+<br>
+
+Create dataframe for participants for whom we have Age of Auditory Exposure and Age of Language Exposure information
+```{r Age of Language & Auditory Exposure}
+BRIEF <- dplyr::mutate(BRIEF, AoAE = ifelse(BRIEF$Age.of.Auditory.Exposure..mo.=="None", as.character(BRIEF$AgeMonths), as.character(BRIEF$Age.of.Auditory.Exposure..mo.)))
+
+BRIEF$AoAE <- as.integer(BRIEF$AoAE)
+
+BRIEF_AgeOf <- subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!='')
+
+```
+<ul>
+  <li>*This is the dataframe used for linear models in Question 2*</li>
+  1. Create numerical "AoAE" variable from Age of Auditory Exposure variable, converting "None" to current age
+  2. Change structure of Age of Auditory Exposure from character to integer
+  3. Remove participants for whom either of these two variables is missing
+  4. This results in **`r nrow(subset(BRIEF, BRIEF$AoAE!='' & BRIEF$Age.of.Language.Exposure..mo.!=''))` participants**
+</ul>
+<br>
+
+#### Demographics for the Question 2 subset
+```{r}
+table1::label(BRIEF_AgeOf$AgeMonths) <- "Age (Months)"
+table1::label(BRIEF_AgeOf$SES..3.66.) <- "SES"
+table1::label(BRIEF_AgeOf$Sex) <- "Sex"
+table1::label(BRIEF_AgeOf$Race_recoded) <- "Race"
+table1::label(BRIEF_AgeOf$Ethnicity_recoded) <- "Ethnicity"
+table1::label(BRIEF_AgeOf$Age.of.Language.Exposure..mo.) <- "Age of Language Exposure (Months)"
+table1::label(BRIEF_AgeOf$AoAE) <- "Age of Auditory Exposure (Months)"
+
+ 
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded + Age.of.Language.Exposure..mo. + AoAE, data = BRIEF_AgeOf)
+```
+
+<br> 
+
+#### Comparing demographics by Language group (within Question 2 subset) 
+```{r Q2_demographic_langgrp}
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded + Age.of.Language.Exposure..mo. + AoAE | LanguageGroup, data = BRIEF_AgeOf, overall=F)
+```
+<br>
+
 #### Table 2.
 ```{r Table_2}
 table1::label(BRIEF$Hearing_Level_3_Cat) <- "Pre-device hearing level (3 Category)"
@@ -234,45 +306,6 @@ dunnTest(Age.of.Language.Exposure..mo.~LanguageGroup, data=BRIEF, method="hochbe
 </ul>
 <br>
 
-***
-## Results  
-### **Question 1: Do DHH children with access to sign language but not auditory input from birth exhibit executive functioning skills comparable to their typically-hearing peers?**
-*Approach: Compare (via Welch's t-tests) the BRIEF raw scores of Early English group to those of Early ASL group*
-<br>
-
-Create dataframe with only children exposed to language early and perform t-tests for all BRIEF-P scales  
-```{r subset_EarlyGrps}
-BRIEF_early <- subset(BRIEF_AgeOf, BRIEF_AgeOf$Language_Timing=="Early")
-```
-<br>
-
-#### Table 3.
-BRIEF Scores & Welch two sample t-tests for two "Early" groups 
-```{r Early Grp BRIEF Scores}
-table1::label(BRIEF_early$GEC_RawScore) <- "Global Executive Composite"
-table1::label(BRIEF_early$Inhibit_RawScore) <- "Inhibition"
-table1::label(BRIEF_early$Shift_RawScore) <- "Shift"
-table1::label(BRIEF_early$Emotional.Control_RawScore) <- "Emotional Control"
-table1::label(BRIEF_early$Working.Memory_RawScore) <- "Working Memory"
-table1::label(BRIEF_early$Plan.Organize_RawScore) <- "Plan/Organize"
-
-table1(~GEC_RawScore + Inhibit_RawScore + Shift_RawScore + Emotional.Control_RawScore + Working.Memory_RawScore + Plan.Organize_RawScore | Language_Modality, data = BRIEF_early, overall=F)
-
-t.test(BRIEF_early$GEC_RawScore~BRIEF_early$Language_Modality)
-t.test(BRIEF_early$Inhibit_RawScore~BRIEF_early$Language_Modality)
-t.test(BRIEF_early$Shift_RawScore~BRIEF_early$Language_Modality)
-t.test(BRIEF_early$Emotional.Control_RawScore~BRIEF_early$Language_Modality)
-t.test(BRIEF_early$Working.Memory_RawScore~BRIEF_early$Language_Modality)
-t.test(BRIEF_early$Plan.Organize_RawScore~BRIEF_early$Language_Modality)
-
-```
-**Findings**: Early ASL group did not significantly differ from Typically Hearing group on any subscale 
- ***  
-<br>
-
-### **Question 2: Do age of access to auditory input and age of language exposure significantly predict executive functioning?**  
-<p>*Approach: Linear regression models for the BRIEF-P raw scores on general composite score and each subscale predicted by age of auditory and age of language exposure, and other demographic characteristics (SES, sex, age)*</p>
-Also testing whether other demographic variables or ways of characterizing group differences (Length of Auditory Exposure, Language Modality) are better predictive of BRIEF scores
 
 #### Checking correlations between continuous (numerical) predictors
 ```{r Predictor Correlation Matrix}
@@ -754,6 +787,47 @@ stargazer(overall_all_AoLE_AoAE, inhibition_all_AoLE_AoAE, shift_all_AoLE_AoAE, 
 <br>
 
 
+
+***
+
+### **Question 3: Do children with later or degraded access to auditory and/or language input exhibit clinically-significant deficits in executive functioning skills relative to typically-hearing peers?**
+
+This analysis looks at T-scores, and therefore only includes participants who were within the normed age range for the BRIEF-P
+<br>
+
+Create dataframe with participants who are age appropriate for the BRIEF-P (less than 5 years 11 Months old)  
+```{r age_appropriate_df}
+BRIEF_AgeApp <- subset(BRIEF, BRIEF$AgeMonths <= 71)
+```
+<ul>
+  <li>*This is the dataframe used in Question 3 Analyses*</li>
+  <li>**`r nrow(subset(BRIEF, BRIEF$AgeMonths <= 71))` participants**</li>
+</ul>  
+
+<br>
+
+#### Demographics for the Question 3 subset
+```{r}
+table1::label(BRIEF_AgeApp$AgeMonths) <- "Age (Months)"
+table1::label(BRIEF_AgeApp$SES..3.66.) <- "SES"
+table1::label(BRIEF_AgeApp$Sex) <- "Sex"
+table1::label(BRIEF_AgeApp$Race_recoded) <- "Race"
+table1::label(BRIEF_AgeApp$Ethnicity_recoded) <- "Ethnicity"
+table1::label(BRIEF_AgeApp$Age.of.Language.Exposure..mo.) <- "Age of Language Exposure (Months)"
+table1::label(BRIEF_AgeApp$AoAE) <- "Age of Auditory Exposure (Months)"
+
+ 
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded + Age.of.Language.Exposure..mo. + AoAE, data = BRIEF_AgeApp)
+```
+
+<br> 
+
+#### Comparing demographics by Language group (within Question 2 subset) 
+```{r Q3_demographic_langgrp}
+table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded + Age.of.Language.Exposure..mo. + AoAE | LanguageGroup, data = BRIEF_AgeApp, overall=F)
+```
+<br>
+
 #### Figure 1.
 ```{r fig.width=16, fig.height=12, message=FALSE}
 G <- ggplot(data=BRIEF_AgeApp, mapping = aes(x= Language_Timing, y=GEC_Tscore)) + geom_boxplot() + geom_dotplot(mapping=aes(fill=Language_Modality), dotsize = 1.1, method = "dotdensity", binaxis = "y", stackdir = "center", alpha=0.8) + theme(text = element_text(size=20), axis.title=element_text(size=20,face="bold"), legend.title=element_text(size=24), legend.text=element_text(size=24), axis.title.x=element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) + ylab("Global Executive Composite (T-scores)") + scale_x_discrete(labels=c("Early" = "Early Language", "Later" = "Later Language")) + scale_y_continuous(limits= c(30, 100), breaks= c(30, 40, 50, 60, 70, 80, 90, 100)) + scale_fill_grey(name = "Language Modality", start=0.1, end=0.9, ) + geom_hline(aes(yintercept= 50, linetype = "Mean"), colour= 'black') + geom_hline(aes(yintercept= 65, linetype = "Elevated"), colour= 'grey17') + scale_linetype_manual(name = "Standard Score", values=c("dotted", "longdash"), guide = guide_legend(override.aes = list(color = c("grey17", "black"))))
@@ -772,10 +846,6 @@ ggarrange(G, I, S, E, W, P, ncol=3, nrow=2, common.legend = TRUE, legend="bottom
 ```  
 <br>
   
-### **Question 3: Do children with later or degraded access to auditory and/or language input exhibit clinically-significant deficits in executive functioning skills relative to typically-hearing peers?**
-
-This analysis looks at T-scores, and therefore only includes participants who were within the normed age range for the BRIEF-P
-
 
 #### Table 5 data & analyses 
 ##### **Risk Ratios (Relative Risk) and 95% confidence intervals for Global Executive Composite T-scores**
@@ -882,6 +952,8 @@ riskratio.small(PlanOrg_rr)
 ```
 
 <br>
+
+***
 
 ## Additional checks
 
@@ -1023,6 +1095,7 @@ t.test(BRIEF_early_AgeApp$Plan.Organize_RawScore~BRIEF_early_AgeApp$Language_Mod
 <br>
 
 
+***
 
 
 ## Supplementary Materials
