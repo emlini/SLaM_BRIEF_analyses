@@ -822,7 +822,7 @@ table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded 
 
 <br> 
 
-#### Comparing demographics by Language group (within Question 2 subset) 
+#### Comparing demographics by Language group (within Question 3 subset) 
 ```{r Q3_demographic_langgrp}
 table1::table1(~AgeMonths + SES..3.66. + Sex + Race_recoded + Ethnicity_recoded + Age.of.Language.Exposure..mo. + AoAE | LanguageGroup, data = BRIEF_AgeApp, overall=F)
 ```
